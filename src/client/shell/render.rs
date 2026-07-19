@@ -109,6 +109,18 @@ pub(super) fn render_mode_bar(
                     (" keybinds".to_owned(), base),
                 ]);
             }
+            ClientShellMode::AgentFocus => {
+                segments.extend([
+                    (" AGENTS ".to_owned(), mode_style),
+                    ("  ".to_owned(), base),
+                    ("j/k".to_owned(), key),
+                    (" move  ".to_owned(), base),
+                    ("enter".to_owned(), key),
+                    (" focus  ".to_owned(), base),
+                    ("esc".to_owned(), key),
+                    (" exit".to_owned(), base),
+                ]);
+            }
             ClientShellMode::Resize => {
                 segments.extend([
                     (" RESIZE ".to_owned(), mode_style),
@@ -238,6 +250,7 @@ pub(super) struct ShellRenderState<'a> {
     pub(super) remote_collapsed_groups: &'a HashMap<ClientEndpointId, HashSet<String>>,
     pub(super) workspace_scroll: &'a mut usize,
     pub(super) agent_scroll: &'a mut usize,
+    pub(super) agent_focus: &'a Option<AgentFocusState>,
     pub(super) tab_scroll: &'a mut usize,
     pub(super) reveal_focused_workspace: &'a mut bool,
     pub(super) reveal_focused_tab: &'a mut bool,

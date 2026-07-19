@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Added `focus_agents` (default `prefix+a`) to enter a keyboard navigation submode for the sidebar Agents panel. `j`/`k` and arrow keys move a preview cursor, `Enter` focuses the selected agent's pane, and `Esc` exits without changing focus. (#1117)
+
 ## [0.9.5] - 2026-10-14
 
 This is a hotfix release for v0.9.4. See the v0.9.4 notes for the full feature release: https://github.com/herdrdev/herdr/releases/tag/v0.9.4

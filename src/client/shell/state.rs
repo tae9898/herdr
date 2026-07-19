@@ -274,6 +274,19 @@ pub(super) enum ClientShellMode {
     Navigate,
     Resize,
     Copy,
+    AgentFocus,
+}
+
+/// Selection cursor for `ClientShellMode::AgentFocus`. Client-only state: the
+/// server/API path is unaware of it.
+///
+/// Tracked by `pane_id` (not list index) so the selection does not drift when
+/// `agent_panel_sort` reorders the panel between keypresses. The visible row
+/// index is recomputed at render time by matching `pane_id` against the live
+/// agent panel ordering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AgentFocusState {
+    pub(super) pane_id: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -884,6 +897,9 @@ pub(crate) struct ClientShellState {
     pub(super) remote_collapsed_groups: HashMap<ClientEndpointId, HashSet<String>>,
     pub(super) workspace_scroll: usize,
     pub(super) agent_scroll: usize,
+    /// Active `ClientShellMode::AgentFocus` selection. `None` when not in
+    /// that mode.
+    pub(super) agent_focus: Option<AgentFocusState>,
     pub(super) pending_agent_reveal: Option<(ClientEndpointId, String)>,
     pub(super) tab_scroll: usize,
     pub(super) mobile_switcher_scroll: usize,
@@ -1058,6 +1074,7 @@ impl ClientShellState {
             remote_collapsed_groups,
             workspace_scroll: 0,
             agent_scroll: 0,
+            agent_focus: None,
             pending_agent_reveal: None,
             tab_scroll: 0,
             mobile_switcher_scroll: 0,

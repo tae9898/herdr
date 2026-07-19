@@ -94,7 +94,7 @@ impl ClientShellState {
     pub(crate) fn host_keyboard_report_all_requested(&self) -> bool {
         matches!(
             self.mode,
-            ClientShellMode::Prefix | ClientShellMode::Navigate
+            ClientShellMode::Prefix | ClientShellMode::Navigate | ClientShellMode::AgentFocus
         )
     }
 
@@ -717,6 +717,10 @@ impl ClientShellState {
                 self.route_navigate_key(key, outcome);
                 None
             }
+            ClientShellMode::AgentFocus => {
+                self.route_agent_focus_key(key, outcome);
+                None
+            }
             ClientShellMode::Resize => {
                 self.route_resize_key(key, outcome);
                 None
@@ -929,6 +933,29 @@ impl ClientShellState {
             self.record_navigate_binding(binding, false, outcome);
         } else if is_ctrl_bracket_key(key) {
             self.cancel_navigate(outcome);
+        }
+    }
+
+    /// In-mode handler for `ClientShellMode::AgentFocus`: `j`/`Down` and
+    /// `k`/`Up` move a preview cursor through the sidebar Agents panel without
+    /// changing focus, `Enter` focuses the selected agent's pane and exits, and
+    /// `Esc` exits without changing focus. Modified keys are ignored so the
+    /// cursor only moves on real j/k/arrow presses.
+    fn route_agent_focus_key(
+        &mut self,
+        key: &crate::input::TerminalKey,
+        outcome: &mut ClientShellInput,
+    ) {
+        let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));
+        if !modifiers.is_empty() {
+            return;
+        }
+        match code {
+            KeyCode::Esc => self.leave_agent_focus_mode(outcome),
+            KeyCode::Enter => self.accept_agent_focus(outcome),
+            KeyCode::Char('j') | KeyCode::Down => self.move_agent_focus(1, outcome),
+            KeyCode::Char('k') | KeyCode::Up => self.move_agent_focus(-1, outcome),
+            _ => {}
         }
     }
 
