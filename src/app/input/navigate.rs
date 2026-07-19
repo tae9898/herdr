@@ -256,6 +256,9 @@ impl App {
                 self.state.mobile_switcher_scroll = 0;
                 self.state.mode = Mode::Navigate;
             }
+            NavigateAction::FocusAgents => {
+                self.state.enter_agent_focus_mode();
+            }
             NavigateAction::PreviousWorkspace => {
                 if let Some(ws_idx) = self.relative_visible_workspace(-1) {
                     self.focus_workspace_idx_via_api(ws_idx);
@@ -1299,6 +1302,8 @@ pub(crate) enum NavigateAction {
     NextWorkspace,
     PreviousAgent,
     NextAgent,
+    /// Enter the `Mode::AgentFocus` keyboard submode for the sidebar Agents panel.
+    FocusAgents,
     NewTab,
     RenameTab,
     PreviousTab,
@@ -1432,6 +1437,7 @@ fn non_indexed_action_for_key(
         (&kb.next_workspace, NavigateAction::NextWorkspace),
         (&kb.previous_agent, NavigateAction::PreviousAgent),
         (&kb.next_agent, NavigateAction::NextAgent),
+        (&kb.focus_agents, NavigateAction::FocusAgents),
         (&kb.new_tab, NavigateAction::NewTab),
         (&kb.rename_tab, NavigateAction::RenameTab),
         (&kb.previous_tab, NavigateAction::PreviousTab),
@@ -1720,6 +1726,7 @@ pub(super) fn execute_navigate_action_in_context(
             leave_navigate_mode(state);
         }
         NavigateAction::OpenNavigator => state.open_navigator_from(terminal_runtimes),
+        NavigateAction::FocusAgents => state.enter_agent_focus_mode(),
     }
 
     finish_action_context(state, context, previous_mode);

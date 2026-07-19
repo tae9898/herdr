@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Added `focus_agents` (default `prefix+a`) to enter a keyboard navigation submode for the sidebar Agents panel. `j`/`k` and arrow keys move a preview cursor, `Enter` focuses the selected agent's pane, and `Esc` exits without changing focus. (#1117)
 - Added named-agent `start`, `prompt`, and completion-wait workflows. Agent startup now targets an existing pane without changing topology, validates the requested interactive agent kind, and accepts optional native arguments after `--`.
 - Added `ui.sidebar_start_collapsed` to launch Herdr with the sidebar collapsed. (#1463)
 - Added macOS support for the `HERDR_AGENT=<agent>` foreground-process hint, allowing agents hidden behind host-visible wrappers such as `nono` to use the named agent's screen manifest. (#679)

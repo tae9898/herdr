@@ -1346,17 +1346,29 @@ fn render_agent_detail(
         }
 
         let is_active = app.is_active_pane(detail.ws_idx, detail.tab_idx, detail.pane_id);
-        let row_style = if is_active {
+        // Render-only read: gate on `mode == AgentFocus` so a stale cursor
+        // left behind by a popup close / API path that flipped `mode` without
+        // going through `leave_agent_focus_mode` cannot keep highlighting a
+        // row. Matches by `pane_id`, so re-sorting the panel between the last
+        // keypress and a redraw still highlights the right row.
+        let is_selected = app.mode == crate::app::state::Mode::AgentFocus
+            && app
+                .agent_panel_focus
+                .as_ref()
+                .is_some_and(|focus| focus.pane_id == detail.pane_id);
+        let row_style = if is_selected {
+            Style::default().bg(p.surface0)
+        } else if is_active {
             Style::default().bg(p.surface_dim)
         } else {
             Style::default()
         };
-        let name_style = if is_active {
+        let name_style = if is_active || is_selected {
             Style::default().fg(p.text).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(p.subtext0).add_modifier(Modifier::BOLD)
         };
-        let status_style = if is_active {
+        let status_style = if is_active || is_selected {
             Style::default().fg(label_color)
         } else {
             Style::default().fg(label_color).add_modifier(Modifier::DIM)

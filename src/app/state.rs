@@ -811,6 +811,22 @@ pub enum Mode {
     GlobalMenu,
     KeybindHelp,
     Navigator,
+    /// Keyboard navigation submode for the sidebar Agents panel. `j`/`k` move a
+    /// selection cursor (preview only — focus does not change), `Enter` focuses
+    /// the selected agent's pane and exits, `Esc` exits without changing focus.
+    AgentFocus,
+}
+
+/// Selection state for `Mode::AgentFocus`. Lives entirely in the TUI/client
+/// layer: the server/socket/wire protocol is unaware of this cursor.
+///
+/// Tracked by `pane_id` (not list index) so the selection does not drift when
+/// `agent_panel_sort` reorders the panel between keypresses. The visible row
+/// index is recomputed at render time by matching `pane_id` against the live
+/// `agent_panel_entries` list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AgentFocusState {
+    pub pane_id: crate::layout::PaneId,
 }
 
 impl Mode {
@@ -836,6 +852,7 @@ impl Mode {
                 | Mode::ContextMenu
                 | Mode::GlobalMenu
                 | Mode::KeybindHelp
+                | Mode::AgentFocus
         )
     }
 }
@@ -1411,6 +1428,8 @@ pub struct AppState {
     pub copy_mode: Option<CopyModeState>,
     pub workspace_scroll: usize,
     pub agent_panel_scroll: usize,
+    /// Active `Mode::AgentFocus` selection. `None` when not in that mode.
+    pub(crate) agent_panel_focus: Option<AgentFocusState>,
     pub tab_scroll: usize,
     pub tab_scroll_follow_active: bool,
     pub mobile_switcher_scroll: usize,
@@ -1779,6 +1798,7 @@ impl AppState {
             copy_mode: None,
             workspace_scroll: 0,
             agent_panel_scroll: 0,
+            agent_panel_focus: None,
             tab_scroll: 0,
             tab_scroll_follow_active: true,
             mobile_switcher_scroll: 0,

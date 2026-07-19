@@ -1337,7 +1337,10 @@ impl AppState {
         self.cycle_agent_entry(false);
     }
 
-    #[cfg(test)]
+    /// Focus the agent shown at `idx` in the sidebar Agents panel, switching
+    /// active workspace/tab/pane if needed. Returns `false` if `idx` is out of
+    /// range or the target could not be focused. Used by both tests and the
+    /// `Mode::AgentFocus` Enter handler.
     pub fn focus_agent_entry(&mut self, idx: usize) -> bool {
         let entries = crate::ui::agent_panel_entries(self);
         let Some(target) = entries.get(idx) else {
@@ -1398,6 +1401,65 @@ impl AppState {
             self.agent_panel_scroll,
             idx,
         );
+    }
+
+    /// Enter `Mode::AgentFocus`, initializing the cursor to the agent panel row
+    /// that currently has keyboard focus (falling back to the first entry).
+    /// No-op when the panel is empty. The cursor tracks the focused pane by
+    /// `pane_id` so it survives later resorting of the panel.
+    pub(crate) fn enter_agent_focus_mode(&mut self) {
+        let entries = crate::ui::agent_panel_entries(self);
+        if entries.is_empty() {
+            return;
+        }
+        let focused = self
+            .active
+            .and_then(|idx| self.workspaces.get(idx))
+            .and_then(crate::workspace::Workspace::focused_pane_id);
+        let target = focused
+            .and_then(|pane_id| entries.iter().find(|entry| entry.pane_id == pane_id))
+            .or_else(|| entries.first());
+        let Some(target) = target else {
+            return;
+        };
+        let pane_id = target.pane_id;
+        let idx = entries
+            .iter()
+            .position(|entry| entry.pane_id == pane_id)
+            .unwrap_or(0);
+        self.ensure_agent_panel_entry_visible(idx);
+        self.agent_panel_focus = Some(crate::app::state::AgentFocusState { pane_id });
+        self.mode = Mode::AgentFocus;
+    }
+
+    /// Exit `Mode::AgentFocus` without changing focus. The cursor state is
+    /// dropped so the next entry re-initializes from the focused pane.
+    pub(crate) fn leave_agent_focus_mode(&mut self) {
+        self.agent_panel_focus = None;
+        if self.active.is_some() {
+            self.mode = Mode::Terminal;
+        } else {
+            self.mode = Mode::Navigate;
+        }
+    }
+
+    /// Focus the agent under the `Mode::AgentFocus` cursor. Used by the
+    /// `Enter` key handler. Resolves the stored `pane_id` to the current
+    /// `agent_panel_entries` row so a re-sort between the last j/k and Enter
+    /// does not land on the wrong pane. Silently does nothing when the target
+    /// is no longer in the panel.
+    pub(crate) fn focus_selected_agent(&mut self) {
+        let Some(focus) = self.agent_panel_focus else {
+            return;
+        };
+        let entries = crate::ui::agent_panel_entries(self);
+        let Some(idx) = entries
+            .iter()
+            .position(|entry| entry.pane_id == focus.pane_id)
+        else {
+            return;
+        };
+        self.focus_agent_entry(idx);
     }
 
     pub(crate) fn terminal_ids_for_workspace(
@@ -1488,6 +1550,25 @@ impl AppState {
             .is_some_and(|focus| pane_ids.contains(&focus.pane_id))
         {
             self.previous_pane_focus = None;
+        }
+        // Mirror the copy_mode cleanup for `Mode::AgentFocus`: if the pane
+        // under the cursor closes (mid-focus, or because a popup close / API
+        // path flipped `mode` without going through `leave_agent_focus_mode`),
+        // drop the cursor so the render does not keep highlighting a stale
+        // row.
+        if self
+            .agent_panel_focus
+            .as_ref()
+            .is_some_and(|focus| pane_ids.contains(&focus.pane_id))
+        {
+            self.agent_panel_focus = None;
+            if self.mode == Mode::AgentFocus {
+                self.mode = if self.active.is_some() {
+                    Mode::Terminal
+                } else {
+                    Mode::Navigate
+                };
+            }
         }
         for pane_id in pane_ids {
             self.plugin_panes.remove(&pane_id);
@@ -5472,5 +5553,144 @@ mod tests {
         assert!(!deferred);
         assert_eq!(state.workspaces.len(), 1);
         assert_eq!(state.workspaces[0].display_name(), "notes");
+    }
+
+    // --- Mode::AgentFocus (focus_agents submode) ---------------------------
+
+    fn agent_focus_state_with_three_agents() -> (
+        AppState,
+        crate::layout::PaneId,
+        crate::layout::PaneId,
+        crate::layout::PaneId,
+    ) {
+        let mut first = Workspace::test_new("one");
+        let first_root = first.tabs[0].root_pane;
+        let first_second = first.test_split(Direction::Horizontal);
+        first.tabs[0].layout.focus_pane(first_root);
+        let second = Workspace::test_new("two");
+        let second_root = second.tabs[0].root_pane;
+
+        let mut state = AppState::test_new();
+        state.workspaces = vec![first, second];
+        state.ensure_test_terminals();
+        state.active = Some(0);
+        state.selected = 0;
+        state.mode = Mode::Terminal;
+        mark_agent(&mut state, 0, 0, first_root);
+        mark_agent(&mut state, 0, 0, first_second);
+        mark_agent(&mut state, 1, 0, second_root);
+        (state, first_root, first_second, second_root)
+    }
+
+    #[test]
+    fn enter_agent_focus_mode_initializes_cursor_to_focused_agent() {
+        let (mut state, first_root, _, _) = agent_focus_state_with_three_agents();
+        // The fixture focuses `first_root` already, so the cursor must track
+        // its pane_id (which is also the first entry in agent-panel order).
+        assert_eq!(state.workspaces[0].focused_pane_id(), Some(first_root),);
+
+        state.enter_agent_focus_mode();
+
+        assert_eq!(state.mode, Mode::AgentFocus);
+        let focus = state
+            .agent_panel_focus
+            .expect("agent_panel_focus should be Some after entering the mode");
+        assert_eq!(focus.pane_id, first_root);
+        state.assert_invariants_for_test();
+    }
+
+    #[test]
+    fn enter_agent_focus_mode_is_noop_on_empty_panel() {
+        let mut state = AppState::test_new();
+        // No workspaces means an empty agent panel.
+        state.enter_agent_focus_mode();
+
+        assert_eq!(state.mode, Mode::Navigate);
+        assert!(state.agent_panel_focus.is_none());
+    }
+
+    #[test]
+    fn focus_selected_agent_jumps_to_selected_entry() {
+        let (mut state, _, _, second_root) = agent_focus_state_with_three_agents();
+
+        state.enter_agent_focus_mode();
+        // Simulate two `j` presses by tracking the second_root pane_id
+        // directly (the third entry in the panel).
+        state.agent_panel_focus = Some(crate::app::state::AgentFocusState {
+            pane_id: second_root,
+        });
+
+        state.focus_selected_agent();
+
+        assert_eq!(state.active, Some(1));
+        assert_eq!(state.workspaces[1].focused_pane_id(), Some(second_root));
+        state.assert_invariants_for_test();
+    }
+
+    #[test]
+    fn remove_plugin_pane_records_clears_agent_focus_when_target_closes() {
+        // Regression: when an agent pane closes mid-AgentFocus (or any path
+        // that bypasses `leave_agent_focus_mode`), `remove_plugin_pane_records`
+        // must drop the cursor so the render does not keep highlighting a
+        // stale row. Mirrors the copy_mode cleanup sibling.
+        let (mut state, first_root, _, _) = agent_focus_state_with_three_agents();
+        state.enter_agent_focus_mode();
+        assert_eq!(
+            state.agent_panel_focus.as_ref().unwrap().pane_id,
+            first_root
+        );
+        assert_eq!(state.mode, Mode::AgentFocus);
+
+        state.remove_plugin_pane_records([first_root]);
+
+        assert!(state.agent_panel_focus.is_none());
+        // Mode was AgentFocus and active workspace is still present, so the
+        // cleanup must flip it back to Terminal.
+        assert_eq!(state.mode, Mode::Terminal);
+        state.assert_invariants_for_test();
+    }
+
+    #[test]
+    fn remove_plugin_pane_records_leaves_agent_focus_when_unrelated_pane_closes() {
+        let (mut state, first_root, _, second_root) = agent_focus_state_with_three_agents();
+        state.enter_agent_focus_mode();
+        assert_eq!(
+            state.agent_panel_focus.as_ref().unwrap().pane_id,
+            first_root
+        );
+
+        // Closing a different pane must not clear the cursor.
+        state.remove_plugin_pane_records([second_root]);
+
+        assert!(state.agent_panel_focus.is_some());
+        assert_eq!(
+            state.agent_panel_focus.as_ref().unwrap().pane_id,
+            first_root
+        );
+        state.assert_invariants_for_test();
+    }
+
+    #[test]
+    fn leave_agent_focus_mode_clears_cursor_and_returns_to_terminal() {
+        let (mut state, _, _, _) = agent_focus_state_with_three_agents();
+        state.enter_agent_focus_mode();
+        assert!(state.agent_panel_focus.is_some());
+
+        state.leave_agent_focus_mode();
+
+        assert_eq!(state.mode, Mode::Terminal);
+        assert!(state.agent_panel_focus.is_none());
+    }
+
+    #[test]
+    fn leave_agent_focus_mode_falls_back_to_navigate_when_no_active_workspace() {
+        let (mut state, _, _, _) = agent_focus_state_with_three_agents();
+        state.enter_agent_focus_mode();
+        state.active = None;
+
+        state.leave_agent_focus_mode();
+
+        assert_eq!(state.mode, Mode::Navigate);
+        assert!(state.agent_panel_focus.is_none());
     }
 }

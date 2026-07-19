@@ -451,6 +451,10 @@ pub fn render_with_runtime_registry(
         Mode::GlobalMenu => render_global_launcher_menu(app, frame),
         Mode::KeybindHelp => render_keybind_help_overlay(app, frame),
         Mode::Navigator => render_navigator_overlay(app, terminal_runtimes, frame),
+        // `Mode::AgentFocus` only moves the sidebar Agents panel cursor; the
+        // selection highlight is rendered inside `render_agent_detail`, so no
+        // overlay is needed here.
+        Mode::AgentFocus => {}
         Mode::Terminal => {}
     }
 }

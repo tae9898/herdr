@@ -188,6 +188,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # previous_agent = ""     # optional, unset by default
 # next_agent = ""         # optional, unset by default
 # focus_agent = ""        # optional indexed binding, e.g. "prefix+alt+1..9"
+# focus_agents = "prefix+a" # focus the agents panel; j/k move selection, Enter jumps, Esc exits
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
 # rename_tab = "prefix+shift+t"

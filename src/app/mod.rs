@@ -560,6 +560,7 @@ impl App {
             copy_mode: None,
             workspace_scroll: 0,
             agent_panel_scroll: 0,
+            agent_panel_focus: None,
             tab_scroll: 0,
             tab_scroll_follow_active: true,
             mobile_switcher_scroll: 0,
@@ -1716,6 +1717,11 @@ impl App {
             }
             Mode::Navigator => {
                 input::handle_navigator_key(&mut self.state, &self.terminal_runtimes, key_event);
+            }
+            Mode::AgentFocus => {
+                // TUI-only submode; the headless server never enters it. Routed
+                // for type-safety but expected to stay unused here.
+                self.handle_agent_focus_key(key_event);
             }
             Mode::Terminal => {
                 // Should not be called in terminal mode.

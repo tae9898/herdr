@@ -36,6 +36,7 @@ fn modified_url_click_modifier_matches_terminal_mouse_reporting() {
     assert_eq!(modified_url_click_modifier(), KeyModifiers::CONTROL);
 }
 
+mod agent_focus;
 mod copy_mode;
 mod modal;
 mod mouse;
@@ -111,6 +112,7 @@ impl App {
                 Mode::Navigator => {
                     handle_navigator_key(&mut self.state, &self.terminal_runtimes, key_event)
                 }
+                Mode::AgentFocus => self.handle_agent_focus_key(key_event),
                 Mode::Terminal => unreachable!(),
             },
         }
