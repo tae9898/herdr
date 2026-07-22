@@ -1408,6 +1408,12 @@ impl AppState {
     /// No-op when the panel is empty. The cursor tracks the focused pane by
     /// `pane_id` so it survives later resorting of the panel.
     pub(crate) fn enter_agent_focus_mode(&mut self) {
+        // The Agents panel is only rendered while the sidebar is expanded, so
+        // expand it first to keep the focus cursor visible during navigation.
+        if self.sidebar_collapsed {
+            self.sidebar_collapsed = false;
+            self.mark_session_dirty();
+        }
         let entries = crate::ui::agent_panel_entries(self);
         if entries.is_empty() {
             return;
@@ -1416,17 +1422,12 @@ impl AppState {
             .active
             .and_then(|idx| self.workspaces.get(idx))
             .and_then(crate::workspace::Workspace::focused_pane_id);
-        let target = focused
-            .and_then(|pane_id| entries.iter().find(|entry| entry.pane_id == pane_id))
-            .or_else(|| entries.first());
-        let Some(target) = target else {
-            return;
-        };
-        let pane_id = target.pane_id;
-        let idx = entries
-            .iter()
-            .position(|entry| entry.pane_id == pane_id)
+        // Resolve the focused pane to its current panel row in a single pass.
+        // The cursor tracks the row by `pane_id`, which survives later resorting.
+        let idx = focused
+            .and_then(|pane_id| entries.iter().position(|entry| entry.pane_id == pane_id))
             .unwrap_or(0);
+        let pane_id = entries[idx].pane_id;
         self.ensure_agent_panel_entry_visible(idx);
         self.agent_panel_focus = Some(crate::app::state::AgentFocusState { pane_id });
         self.mode = Mode::AgentFocus;
