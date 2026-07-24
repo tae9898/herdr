@@ -105,6 +105,11 @@ impl App {
             self.cancel_copy_mode_if_active();
             self.launch_focused_scrollback_editor();
             finish_action_context(&mut self.state, ActionContext::Prefix, previous_mode);
+        } else if action == NavigateAction::ClearScrollback {
+            let previous_mode = self.state.mode;
+            self.cancel_copy_mode_if_active();
+            self.clear_focused_scrollback();
+            finish_action_context(&mut self.state, ActionContext::Prefix, previous_mode);
         } else if action == NavigateAction::CopyMode {
             self.cancel_copy_mode_if_active();
             self.execute_tui_navigate_action(action, ActionContext::Prefix);
@@ -158,6 +163,8 @@ impl App {
         if let Some(action) = navigate_mode_non_indexed_action_for_key(&self.state, raw_key) {
             if action == NavigateAction::EditScrollback {
                 self.launch_focused_scrollback_editor();
+            } else if action == NavigateAction::ClearScrollback {
+                self.clear_focused_scrollback();
             } else {
                 self.execute_tui_navigate_action(action, ActionContext::Navigate);
             }
@@ -370,6 +377,7 @@ impl App {
                 }
             }
             NavigateAction::EditScrollback => {}
+            NavigateAction::ClearScrollback => {}
             NavigateAction::CopyMode => self.state.enter_copy_mode(&self.terminal_runtimes),
             NavigateAction::Zoom => {
                 self.zoom_focused_pane_via_api();
@@ -888,6 +896,25 @@ impl App {
         }
     }
 
+    /// Clear the scrollback history of the focused pane (keeps the visible screen).
+    pub(super) fn clear_focused_scrollback(&mut self) {
+        let Some(ws_idx) = self.state.active else {
+            return;
+        };
+        let Some(ws) = self.state.workspaces.get(ws_idx) else {
+            return;
+        };
+        let Some(pane_id) = ws.focused_pane_id() else {
+            return;
+        };
+        if let Some(rt) = self
+            .state
+            .runtime_for_pane_in_workspace(&self.terminal_runtimes, ws_idx, pane_id)
+        {
+            rt.clear_scrollback();
+        }
+    }
+
     fn open_focused_scrollback_in_editor(&mut self) -> std::io::Result<()> {
         let ws_idx = self
             .state
@@ -1322,6 +1349,7 @@ pub(crate) enum NavigateAction {
     SplitHorizontal,
     ClosePane,
     EditScrollback,
+    ClearScrollback,
     CopyMode,
     Zoom,
     EnterResizeMode,
@@ -1445,6 +1473,7 @@ fn non_indexed_action_for_key(
         (&kb.close_tab, NavigateAction::CloseTab),
         (&kb.rename_pane, NavigateAction::RenamePane),
         (&kb.edit_scrollback, NavigateAction::EditScrollback),
+        (&kb.clear_scrollback, NavigateAction::ClearScrollback),
         (&kb.copy_mode, NavigateAction::CopyMode),
         (&kb.focus_pane_left, NavigateAction::FocusPaneLeft),
         (&kb.focus_pane_down, NavigateAction::FocusPaneDown),
@@ -1687,6 +1716,7 @@ pub(super) fn execute_navigate_action_in_context(
             }
         }
         NavigateAction::EditScrollback => {}
+        NavigateAction::ClearScrollback => {}
         NavigateAction::CopyMode => state.enter_copy_mode(terminal_runtimes),
         NavigateAction::Zoom => {
             state.toggle_zoom();

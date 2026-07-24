@@ -677,6 +677,14 @@ impl Terminal {
         }
     }
 
+    /// Erase scrollback history above the visible screen (CSI 3 J → `Screen.eraseHistory`).
+    /// Preserves the visible screen and snaps the viewport to the bottom — the same
+    /// semantics as tmux `clear-history`. Terminal/terminfo-independent because the
+    /// sequence is fed straight to the VT, bypassing the PTY and the Droid compat filter.
+    pub fn clear_scrollback(&mut self) {
+        self.write(b"\x1b[3J");
+    }
+
     pub fn resize(
         &mut self,
         cols: u16,
