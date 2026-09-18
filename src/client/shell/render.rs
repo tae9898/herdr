@@ -121,6 +121,18 @@ pub(super) fn render_mode_bar(
                     (" done".to_owned(), base),
                 ]);
             }
+            ClientShellMode::AgentFocus => {
+                segments.extend([
+                    (" AGENTS ".to_owned(), mode_style),
+                    ("  ".to_owned(), base),
+                    ("j/k".to_owned(), key),
+                    (" select  ".to_owned(), base),
+                    ("enter".to_owned(), key),
+                    (" focus  ".to_owned(), base),
+                    ("esc".to_owned(), key),
+                    (" cancel".to_owned(), base),
+                ]);
+            }
             ClientShellMode::Copy => {
                 let copy_mode = copy_mode?;
                 if let Some(prompt) = copy_mode.search_prompt.as_ref() {
@@ -248,6 +260,9 @@ pub(super) struct ShellRenderState<'a> {
     pub(super) reveal_navigation_workspace: &'a mut bool,
     pub(super) dragged_workspace_id: Option<&'a str>,
     pub(super) workspace_drop_indicator_row: Option<u16>,
+    /// Selected row for the `AgentFocus` preview cursor. `None` outside that
+    /// mode, so a stale cursor can never keep highlighting a row.
+    pub(super) agent_focus_pane_id: Option<String>,
 }
 
 pub(super) fn render_shell(
