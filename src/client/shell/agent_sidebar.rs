@@ -56,6 +56,7 @@ pub(super) fn render_agent_panel(
     config: &ClientShellConfig,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
+    selected_pane_id: Option<&str>,
 ) {
     if !render_agent_panel_header(
         buffer,
@@ -82,7 +83,13 @@ pub(super) fn render_agent_panel(
         |row| row.rows.len(),
         |buffer, rect, row, hits| {
             hits.agents.push((rect, row.pane_id.clone()));
-            render_agent_row(buffer, rect, row, config);
+            render_agent_row(
+                buffer,
+                rect,
+                row,
+                selected_pane_id == Some(row.pane_id.as_str()),
+                config,
+            );
         },
     );
 }
@@ -322,15 +329,20 @@ pub(super) fn render_agent_row(
     buffer: &mut Buffer,
     rect: Rect,
     row: &AgentRow,
+    selected: bool,
     config: &ClientShellConfig,
 ) {
     let palette = &config.palette;
-    let row_style = if row.focused {
+    // `selected` marks the `AgentFocus` preview cursor; `focused` marks the
+    // pane that actually owns keyboard focus.
+    let row_style = if selected {
+        Style::default().bg(palette.surface0)
+    } else if row.focused {
         Style::default().bg(palette.active_row_bg)
     } else {
         Style::default()
     };
-    let name_style = if row.focused {
+    let name_style = if row.focused || selected {
         Style::default()
             .fg(palette.text)
             .add_modifier(Modifier::BOLD)

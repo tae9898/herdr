@@ -77,6 +77,9 @@ impl ClientShellState {
             reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
             dragged_workspace_id: None,
             workspace_drop_indicator_row: None,
+            agent_focus_pane_id: (self.mode == ClientShellMode::AgentFocus)
+                .then(|| self.agent_focus_pane_id.clone())
+                .flatten(),
         };
         if let Some(snapshot) = local_snapshot {
             render::render_sidebar(
@@ -233,6 +236,9 @@ impl ClientShellState {
                 reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
+                agent_focus_pane_id: (self.mode == ClientShellMode::AgentFocus)
+                    .then(|| self.agent_focus_pane_id.clone())
+                    .flatten(),
             },
         );
         self.hits.panes = surface
