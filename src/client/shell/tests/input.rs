@@ -675,3 +675,167 @@ fn every_configured_prefix_enters_prefix_mode() {
         assert_eq!(state.mode, ClientShellMode::Terminal);
     }
 }
+
+// --- ClientShellMode::AgentFocus (focus_agents submode) ---------------------
+
+fn agent_panel_snapshot() -> ClientShellSnapshot {
+    let mut projection = snapshot();
+    projection.agents = vec![
+        panel_agent("pane_1", true),
+        panel_agent("pane_2", false),
+        panel_agent("pane_3", false),
+    ];
+    projection
+}
+
+fn panel_agent(pane_id: &str, focused: bool) -> ClientShellAgent {
+    ClientShellAgent {
+        pane_id: pane_id.into(),
+        workspace_id: "ws_1".into(),
+        tab_id: "tab_1".into(),
+        name: None,
+        display_agent: None,
+        agent: Some("claude".into()),
+        title: None,
+        terminal_title: None,
+        terminal_title_stripped: None,
+        agent_status: AgentStatus::Idle,
+        state_change_seq: 0,
+        state_labels: Vec::new(),
+        tokens: Vec::new(),
+        focused,
+    }
+}
+
+fn agent_focus_state() -> ClientShellState {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(agent_panel_snapshot()));
+    state.set_pane_surface(surface());
+    state
+}
+
+#[test]
+fn focus_agents_binding_enters_mode_with_cursor_on_focused_agent() {
+    let mut state = agent_focus_state();
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents),
+        &mut outcome,
+    );
+
+    assert_eq!(state.mode, ClientShellMode::AgentFocus);
+    assert_eq!(state.agent_focus_pane_id.as_deref(), Some("pane_1"));
+    assert!(outcome.repaint);
+}
+
+#[test]
+fn focus_agents_binding_is_noop_on_empty_panel() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents),
+        &mut outcome,
+    );
+
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert_eq!(state.agent_focus_pane_id, None);
+}
+
+#[test]
+fn prefix_a_enters_agent_focus_mode() {
+    let mut state = agent_focus_state();
+    let prefix = crate::input::TerminalKey::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    let outcome = state.handle_raw_events(vec![RawInputEvent::Key(prefix)]);
+    assert!(outcome.repaint);
+
+    let a = crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::empty());
+    state.handle_raw_events(vec![RawInputEvent::Key(a)]);
+
+    assert_eq!(state.mode, ClientShellMode::AgentFocus);
+    assert_eq!(state.agent_focus_pane_id.as_deref(), Some("pane_1"));
+}
+
+#[test]
+fn agent_focus_j_and_k_move_cursor_with_wraparound() {
+    let mut state = agent_focus_state();
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents),
+        &mut outcome,
+    );
+
+    let j = || crate::input::TerminalKey::new(KeyCode::Char('j'), KeyModifiers::empty());
+    let k = crate::input::TerminalKey::new(KeyCode::Char('k'), KeyModifiers::empty());
+    for expected in ["pane_2", "pane_3", "pane_1"] {
+        state.handle_raw_events(vec![RawInputEvent::Key(j())]);
+        assert_eq!(state.agent_focus_pane_id.as_deref(), Some(expected));
+    }
+    state.handle_raw_events(vec![RawInputEvent::Key(k)]);
+    assert_eq!(state.agent_focus_pane_id.as_deref(), Some("pane_3"));
+    assert_eq!(state.mode, ClientShellMode::AgentFocus);
+}
+
+#[test]
+fn agent_focus_enter_issues_pane_focus_and_exits() {
+    let mut state = agent_focus_state();
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents),
+        &mut outcome,
+    );
+    let j = crate::input::TerminalKey::new(KeyCode::Char('j'), KeyModifiers::empty());
+    state.handle_raw_events(vec![RawInputEvent::Key(j.clone())]);
+    state.handle_raw_events(vec![RawInputEvent::Key(j)]);
+
+    let enter = crate::input::TerminalKey::new(KeyCode::Enter, KeyModifiers::empty());
+    let outcome = state.handle_raw_events(vec![RawInputEvent::Key(enter)]);
+
+    let [ClientShellAction::Endpoint { request, .. }] = &outcome.actions[..] else {
+        panic!("expected a pane focus endpoint request");
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::PaneFocus(target) if target.pane_id == "pane_3"
+    ));
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert_eq!(state.agent_focus_pane_id, None);
+}
+
+#[test]
+fn agent_focus_enter_after_pane_closes_only_exits() {
+    let mut state = agent_focus_state();
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents),
+        &mut outcome,
+    );
+    // The tracked pane disappears from the panel before Enter is pressed.
+    let mut shrunk = agent_panel_snapshot();
+    shrunk.agents.retain(|agent| agent.pane_id != "pane_1");
+    state.set_snapshot(Box::new(shrunk));
+
+    let enter = crate::input::TerminalKey::new(KeyCode::Enter, KeyModifiers::empty());
+    let outcome = state.handle_raw_events(vec![RawInputEvent::Key(enter)]);
+
+    assert!(outcome.actions.is_empty());
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert_eq!(state.agent_focus_pane_id, None);
+}
+
+#[test]
+fn agent_focus_esc_exits_without_requests() {
+    let mut state = agent_focus_state();
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents),
+        &mut outcome,
+    );
+
+    let esc = crate::input::TerminalKey::new(KeyCode::Esc, KeyModifiers::empty());
+    let outcome = state.handle_raw_events(vec![RawInputEvent::Key(esc)]);
+
+    assert!(outcome.actions.is_empty());
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert_eq!(state.agent_focus_pane_id, None);
+}

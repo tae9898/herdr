@@ -274,6 +274,10 @@ pub(super) enum ClientShellMode {
     Navigate,
     Resize,
     Copy,
+    /// Keyboard navigation submode for the sidebar Agents panel. `j`/`k` move
+    /// a preview cursor (focus does not change), `Enter` focuses the selected
+    /// agent's pane and exits, `Esc` exits without changing focus.
+    AgentFocus,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -884,6 +888,10 @@ pub(crate) struct ClientShellState {
     pub(super) workspace_scroll: usize,
     pub(super) agent_scroll: usize,
     pub(super) pending_agent_reveal: Option<(ClientEndpointId, String)>,
+    /// Selected row for `ClientShellMode::AgentFocus`, tracked by `pane_id`
+    /// (not list index) so the cursor does not drift when the panel reorders
+    /// between keypresses. `None` outside that mode.
+    pub(super) agent_focus_pane_id: Option<String>,
     pub(super) tab_scroll: usize,
     pub(super) mobile_switcher_scroll: usize,
     pub(super) reveal_focused_workspace: bool,
@@ -1049,6 +1057,7 @@ impl ClientShellState {
             workspace_scroll: 0,
             agent_scroll: 0,
             pending_agent_reveal: None,
+            agent_focus_pane_id: None,
             tab_scroll: 0,
             mobile_switcher_scroll: 0,
             reveal_focused_workspace: true,

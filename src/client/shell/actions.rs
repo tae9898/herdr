@@ -19,6 +19,9 @@ impl ClientShellState {
                 outcome.resize = true;
                 self.persist_chrome_preferences(outcome);
             }
+            crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgents) => {
+                self.enter_agent_focus_mode(outcome);
+            }
             crate::input::KeybindMatch::Action(action) => {
                 if self.workspace_preview_action_blocked()
                     && matches!(
@@ -255,6 +258,110 @@ impl ClientShellState {
                     );
                 }
             }
+        }
+    }
+
+    /// Enter `ClientShellMode::AgentFocus`, initializing the cursor to the
+    /// agent panel row that currently has keyboard focus (falling back to the
+    /// first row). No-op when the panel is empty. The cursor tracks the row by
+    /// `pane_id`, which survives later resorting of the panel.
+    pub(super) fn enter_agent_focus_mode(&mut self, outcome: &mut ClientShellInput) {
+        // The Agents panel is only rendered while the sidebar is expanded, so
+        // expand it first to keep the focus cursor visible during navigation.
+        if self.sidebar_collapsed {
+            self.sidebar_collapsed = false;
+            self.sidebar_collapsed_manual = true;
+            self.reveal_navigation_workspace = true;
+            self.invalidate_pane_surface();
+            outcome.resize = true;
+            self.persist_chrome_preferences(outcome);
+        }
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        let agents =
+            super::agent_sidebar::ordered_agent_pane_ids(snapshot, self.config.agent_panel_sort);
+        if agents.is_empty() {
+            return;
+        }
+        let idx = snapshot
+            .focused_pane_id
+            .as_deref()
+            .and_then(|pane_id| agents.iter().position(|candidate| candidate == pane_id))
+            .unwrap_or(0);
+        self.reveal_agent_focus_row(&agents, idx);
+        self.agent_focus_pane_id = Some(agents[idx].clone());
+        self.mode = ClientShellMode::AgentFocus;
+        outcome.repaint = true;
+    }
+
+    /// Move the `ClientShellMode::AgentFocus` cursor by `delta` (negative =
+    /// up) with wrap around. Re-reads the panel order on every call because
+    /// the list can reorder between keypresses; if the tracked pane is no
+    /// longer listed it closed mid-mode, so restart from the first row.
+    pub(super) fn move_agent_focus_cursor(&mut self, delta: isize) {
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        let Some(current) = self.agent_focus_pane_id.as_deref() else {
+            return;
+        };
+        let agents =
+            super::agent_sidebar::ordered_agent_pane_ids(snapshot, self.config.agent_panel_sort);
+        if agents.is_empty() {
+            return;
+        }
+        let idx = agents
+            .iter()
+            .position(|candidate| candidate == current)
+            .map(|idx| (idx as isize + delta).rem_euclid(agents.len() as isize) as usize)
+            .unwrap_or(0);
+        self.reveal_agent_focus_row(&agents, idx);
+        self.agent_focus_pane_id = Some(agents[idx].clone());
+    }
+
+    /// Exit `ClientShellMode::AgentFocus` without changing focus. The cursor
+    /// is dropped so the next entry re-initializes from the focused pane.
+    pub(super) fn leave_agent_focus_mode(&mut self, outcome: &mut ClientShellInput) {
+        self.agent_focus_pane_id = None;
+        self.mode = self.copy_or_terminal_mode();
+        outcome.repaint = true;
+    }
+
+    /// Focus the agent under the `ClientShellMode::AgentFocus` cursor, then
+    /// leave the mode. Re-resolves the stored `pane_id` against the live panel
+    /// so a re-sort between the last j/k and Enter does not focus a stale row;
+    /// when the pane is no longer listed this only leaves the mode.
+    pub(super) fn accept_agent_focus(&mut self, outcome: &mut ClientShellInput) {
+        if let Some(pane_id) = self.agent_focus_pane_id.take() {
+            let still_listed = self.snapshot.as_deref().is_some_and(|snapshot| {
+                super::agent_sidebar::ordered_agent_pane_ids(snapshot, self.config.agent_panel_sort)
+                    .iter()
+                    .any(|candidate| candidate == &pane_id)
+            });
+            if still_listed {
+                self.push_endpoint_method(
+                    crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {
+                        pane_id,
+                    }),
+                    outcome,
+                );
+            }
+        }
+        self.leave_agent_focus_mode(outcome);
+    }
+
+    /// Scroll the sidebar Agents panel when the focus-cursor row is outside
+    /// the currently visible slice. Mirrors the `NextAgent`/`PreviousAgent`
+    /// reveal behavior.
+    fn reveal_agent_focus_row(&mut self, agents: &[String], idx: usize) {
+        if !agents.get(idx).is_some_and(|pane_id| {
+            self.hits
+                .agents
+                .iter()
+                .any(|(_, visible_pane_id)| visible_pane_id == pane_id)
+        }) {
+            self.agent_scroll = idx.min(self.hits.agent_max_scroll);
         }
     }
 

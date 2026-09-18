@@ -430,6 +430,9 @@ pub(crate) fn render_sidebar(
         }
     }
 
+    // The selection is gated on the mode at `ShellRenderState` construction,
+    // so a stale cursor left behind by a path that flipped `mode` without
+    // `leave_agent_focus_mode` can never keep highlighting a row.
     super::render_agent_panel(
         buffer,
         detail_area,
@@ -437,6 +440,7 @@ pub(crate) fn render_sidebar(
         config,
         state.agent_scroll,
         hits,
+        state.agent_focus_pane_id.as_deref(),
     );
 
     hits.sidebar_toggle = Rect::new(

@@ -627,6 +627,10 @@ impl ClientShellState {
                 self.route_resize_key(key, outcome);
                 None
             }
+            ClientShellMode::AgentFocus => {
+                self.route_agent_focus_key(key, outcome);
+                None
+            }
             ClientShellMode::Copy => {
                 if self
                     .copy_mode
@@ -943,6 +947,35 @@ impl ClientShellState {
             crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget { pane_id }),
             outcome,
         );
+    }
+
+    fn route_agent_focus_key(
+        &mut self,
+        key: &crate::input::TerminalKey,
+        outcome: &mut ClientShellInput,
+    ) {
+        if key.code == KeyCode::Esc || self.config.keybinds.matches_prefix(key) {
+            self.leave_agent_focus_mode(outcome);
+            return;
+        }
+        let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));
+        if code == KeyCode::Enter && modifiers.is_empty() {
+            self.accept_agent_focus(outcome);
+            return;
+        }
+        if modifiers.is_empty() {
+            match code {
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.move_agent_focus_cursor(1);
+                    outcome.repaint = true;
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.move_agent_focus_cursor(-1);
+                    outcome.repaint = true;
+                }
+                _ => {}
+            }
+        }
     }
 
     fn route_resize_key(
