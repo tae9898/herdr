@@ -249,6 +249,8 @@ pub enum Method {
     PluginPaneFocus(PluginPaneFocusParams),
     #[serde(rename = "plugin.pane.close")]
     PluginPaneClose(PluginPaneCloseParams),
+    #[serde(rename = "pane.clear_scrollback")]
+    PaneClearScrollback(PaneTarget),
 }
 
 #[cfg(test)]

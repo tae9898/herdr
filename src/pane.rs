@@ -3386,6 +3386,12 @@ impl PaneRuntime {
         self.compression.wake();
     }
 
+    /// Clear scrollback history above the visible screen (keeps the visible screen).
+    pub fn clear_scrollback(&self) {
+        self.terminal.clear_scrollback();
+        self.compression.wake();
+    }
+
     /// Set scrollback offset measured from the live bottom of the terminal.
     pub fn set_scroll_offset_from_bottom(&self, lines: usize) {
         self.terminal.set_scroll_offset_from_bottom(lines);

@@ -209,6 +209,24 @@ impl App {
         encode_success(id, ResponseResult::PaneInfo { pane })
     }
 
+    pub(super) fn handle_pane_clear_scrollback(
+        &mut self,
+        id: String,
+        target: PaneTarget,
+    ) -> String {
+        let Some((ws_idx, pane_id)) = self.parse_pane_id(&target.pane_id) else {
+            return pane_not_found(id, &target.pane_id);
+        };
+        let Some(runtime) =
+            self.state
+                .runtime_for_pane_in_workspace(&self.terminal_runtimes, ws_idx, pane_id)
+        else {
+            return pane_not_found(id, &target.pane_id);
+        };
+        runtime.clear_scrollback();
+        encode_success(id, ResponseResult::Ok {})
+    }
+
     pub(super) fn handle_pane_edit_scrollback(&mut self, id: String, target: PaneTarget) -> String {
         let Some((ws_idx, pane_id)) = self.parse_pane_id(&target.pane_id) else {
             return pane_not_found(id, &target.pane_id);
@@ -2788,6 +2806,47 @@ mod tests {
 
         assert_eq!(metadata_error_code(&response), "stale_pane_target");
         assert!(app.overlay_panes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn api_clear_scrollback_erases_history_above_the_visible_screen() {
+        let (mut app, public_pane_id, _pane_id) = app_with_scrollback_runtime();
+
+        let read_params = |lines: u32| PaneReadParams {
+            pane_id: public_pane_id.clone(),
+            source: crate::api::schema::ReadSource::Recent,
+            lines: Some(lines),
+            format: crate::api::schema::ReadFormat::Text,
+            strip_ansi: true,
+            intent: crate::api::schema::ReadIntent::Interactive,
+        };
+        let parse = |response: &str| -> String {
+            let success: SuccessResponse = serde_json::from_str(response).unwrap();
+            let ResponseResult::PaneRead { read } = success.result else {
+                panic!("expected pane read response");
+            };
+            read.text
+        };
+        let before = parse(&app.handle_pane_read("req".into(), read_params(100)));
+        assert!(
+            before.contains("line 00"),
+            "scrollback should hold old rows"
+        );
+
+        let response = app.handle_pane_clear_scrollback(
+            "req".into(),
+            PaneTarget {
+                pane_id: public_pane_id.clone(),
+            },
+        );
+        let success: SuccessResponse = serde_json::from_str(&response).unwrap();
+        assert!(matches!(success.result, ResponseResult::Ok {}));
+
+        let after = parse(&app.handle_pane_read("req".into(), read_params(100)));
+        assert!(
+            !after.contains("line 00"),
+            "cleared scrollback must not keep history above the visible screen"
+        );
     }
 
     #[tokio::test]
