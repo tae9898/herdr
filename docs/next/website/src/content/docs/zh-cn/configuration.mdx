@@ -174,6 +174,16 @@ resize_pane_right = "ctrl+shift+alt+right"
 
 如果你已有旧的自定义按键绑定，并想使用新的默认值，请运行 `herdr config reset-keys`。Herdr 会备份 `config.toml`，移除 `[keys]` 和 `[[keys.command]]`，并在重启或执行 `herdr server reload-config` 后使用内置的 v2 默认值。
 
+### 代理面板导航
+
+`focus_agents`（默认 `prefix+a`）会打开侧边栏代理面板的键盘导航子模式。在子模式中：
+
+- `j` / `Down` 和 `k` / `Up` 在面板中移动预览光标而不改变焦点，因此可以先浏览位于中间的代理。
+- `Enter` 聚焦所选代理的窗格（按需切换工作区、标签页和窗格）并退出子模式。
+- `Esc` 不改变焦点直接退出。
+
+该光标仅是 TUI 内部状态，不会改变服务器看到的内容。
+
 ## 索引跳转
 
 索引式按键绑定在普通按键绑定字段中使用 `1..9`：
