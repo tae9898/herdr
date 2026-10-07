@@ -1,8 +1,49 @@
 id = "zcode"
-version = "2026.10.06.1"
+version = "2026.10.07.1"
 min_engine_version = 3
-updated_at = "2026-10-06T00:00:00Z"
+updated_at = "2026-10-07T00:00:00Z"
 aliases = ["zcode-cli"]
+
+# ZCode keeps the animated "ZC | ⠋ …" pane-title spinner while an interactive
+# dialog is open, so every blocked rule below must outrank osc_title_working
+# (1050); otherwise a waiting pane keeps reporting working.
+
+[[rules]]
+id = "question_awaiting_answer"
+state = "blocked"
+priority = 1120
+region = "whole_recent"
+visible_blocker = true
+# AskUserQuestion marks the waiting tool with the ◆ waiting-for-permission
+# summary and renders "Awaiting N answer(s)", which disappears once every
+# question is answered. Both lines are short enough to survive narrow panes.
+line_regex = [
+  '^\s*◆\s*Question\b.*·\s*waiting for permission$',
+  '^\s*Awaiting\s+[1-9]\d*\s+answers?\s*$',
+]
+
+[[rules]]
+id = "permission_dialog"
+state = "blocked"
+priority = 1110
+region = "whole_recent"
+visible_blocker = true
+# Tool approval dialogs are titled "Permission · <Tool>". The prompt and the
+# choice list below can be customized per request, so only the title line is
+# invariant.
+line_regex = ['^\s*Permission · \S']
+
+[[rules]]
+id = "any_tool_waiting_permission"
+state = "blocked"
+priority = 1060
+region = "whole_recent"
+visible_blocker = true
+# Catch-all for other waiting surfaces (text-input follow-ups, elicitation):
+# any tool still waiting renders "◆ <summary> · waiting for permission".
+# Long summaries wrap in narrow panes and break the line shape; the dialog
+# rules above cover those shapes instead.
+line_regex = ['^\s*◆\s.*·\s*waiting for permission$']
 
 [[rules]]
 id = "osc_title_working"
