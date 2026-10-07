@@ -1,0 +1,25 @@
+id = "zcode"
+version = "2026.10.06.1"
+min_engine_version = 3
+updated_at = "2026-10-06T00:00:00Z"
+aliases = ["zcode-cli"]
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 1050
+region = "osc_title"
+visible_working = true
+# ZCode titles its pane "ZC | <spinner> <activity>" while a turn is live, e.g.
+# "ZC | ⠹ running Bash…". The frames are the standard braille spinner set.
+regex = ['^ZC \| [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] ']
+
+[[rules]]
+id = "osc_title_idle"
+state = "idle"
+priority = 100
+region = "osc_title"
+visible_idle = true
+# Any other ZCode-prefixed title (no animated spinner) is a resting pane.
+regex = ['^ZC \| ']
+not = [{ regex = ['^ZC \| [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] '] }]

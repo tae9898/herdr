@@ -58,7 +58,14 @@ MAX_MATCHER_CHARS = 512
 # version, published sha256). Remove an entry once the bundled manifest ships.
 STAGED_PUBLISHED_MANIFESTS: dict[str, tuple[str, str, str]] = {}
 
-UNPUBLISHED_BUNDLED_MANIFESTS: dict[str, tuple[str, str]] = {}
+# Bundled manifests not yet published to the remote catalog. Current stable
+# clients cannot identify zcode (no compiled-in process identity), so hold the
+# manifest back until the first stable release that ships the agent. Maps agent
+# id to (bundled version, bundled sha256). Remove an entry once the manifest is
+# added to distribution/agent-detection and that release ships.
+UNPUBLISHED_BUNDLED_MANIFESTS: dict[str, tuple[str, str]] = {
+    "zcode": ("2026.10.06.1", "3ffb15a3aa52a9f19a278c191db71726cfd3dbddceb9e88181fbab25e478034c"),
+}
 
 
 def parse_args() -> argparse.Namespace:
