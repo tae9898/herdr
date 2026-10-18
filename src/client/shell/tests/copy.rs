@@ -403,6 +403,45 @@ fn selection_edge_drag_requests_scroll_and_timer_continues_it() {
 }
 
 #[test]
+fn keyboard_copy_mode_ctrl_e_scrolls_up_half_page_like_ctrl_u() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    let mut pane_surface = surface();
+    pane_surface.panes[0].scroll = Some(crate::protocol::PaneSurfaceScrollMetrics {
+        offset_from_bottom: 0,
+        max_offset_from_bottom: 20,
+        viewport_rows: 2,
+    });
+    state.set_pane_surface(pane_surface);
+    state.compose(106, 20).expect("composed frame");
+
+    let mut enter = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::CopyMode),
+        &mut enter,
+    );
+    assert_eq!(state.mode, ClientShellMode::Copy);
+
+    let page = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('e'),
+        KeyModifiers::CONTROL,
+    ))]);
+    assert_eq!(
+        state.copy_mode.as_ref().map(|mode| mode.cursor.row),
+        Some(20)
+    );
+    assert!(matches!(
+        &page.actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(
+                &request.method,
+                crate::api::schema::Method::PaneScroll(params)
+                    if params.offset_from_bottom == 1
+            )
+    ));
+}
+
+#[test]
 fn keyboard_copy_mode_owns_cursor_selection_copy_and_scroll_restore() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.config.copy_on_select = false;

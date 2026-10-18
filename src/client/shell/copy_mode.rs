@@ -192,6 +192,10 @@ impl ClientShellState {
                 self.move_copy_page(-1, true, outcome);
                 return;
             }
+            (KeyCode::Char('e'), modifiers) if modifiers.contains(KeyModifiers::CONTROL) => {
+                self.move_copy_page(-1, true, outcome);
+                return;
+            }
             (KeyCode::Char('d'), modifiers) if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.move_copy_page(1, true, outcome);
                 return;
