@@ -64,7 +64,7 @@ STAGED_PUBLISHED_MANIFESTS: dict[str, tuple[str, str, str]] = {}
 # id to (bundled version, bundled sha256). Remove an entry once the manifest is
 # added to distribution/agent-detection and that release ships.
 UNPUBLISHED_BUNDLED_MANIFESTS: dict[str, tuple[str, str]] = {
-    "zcode": ("2026.10.07.1", "fdd07b0e3896e93004b9eb1fa54dfae56a25104cf41b4fae879682c01df853a6"),
+    "zcode": ("2026.11.03.1", "d196f56a53145c98b7956125e22732c4e1a9eceb89092186de045ea12264dbb5"),
 }
 
 

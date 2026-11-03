@@ -1,7 +1,7 @@
 id = "zcode"
-version = "2026.10.07.1"
+version = "2026.11.03.1"
 min_engine_version = 3
-updated_at = "2026-10-07T00:00:00Z"
+updated_at = "2026-11-03T00:00:00Z"
 aliases = ["zcode-cli"]
 
 # ZCode keeps the animated "ZC | ⠋ …" pane-title spinner while an interactive
@@ -44,6 +44,24 @@ visible_blocker = true
 # Long summaries wrap in narrow panes and break the line shape; the dialog
 # rules above cover those shapes instead.
 line_regex = ['^\s*◆\s.*·\s*waiting for permission$']
+
+[[rules]]
+id = "background_tasks_working"
+state = "working"
+priority = 1040
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+# After its turn ends, ZCode keeps an activity footer while tasks still run in
+# the background: a section header "Activity · N in background · /tasks" and a
+# timer line "[ 🕚 2m 46s ] · N in background". The clock glyph tracks wall
+# time across the clock-face range and elapsed tokens vary, so only the shape
+# around the count is pinned. Below the spinner rule so a live turn still
+# reports through the title, and below the blocked rules so an open dialog
+# wins while background work continues behind it.
+any = [
+  { line_regex = ['^\s*Activity\s*\x{00B7}\s*[1-9]\d*\s+in\s+background\s*\x{00B7}\s*/tasks\s*$'] },
+  { line_regex = ['^\s*\[\s*[\x{1F550}-\x{1F567}]\x{FE0F}?\s*\d+[smh](?:\s+\d+[smh])*\s*\]\s*\x{00B7}\s*[1-9]\d*\s+in\s+background\s*$'] },
+]
 
 [[rules]]
 id = "osc_title_working"
