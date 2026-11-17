@@ -2409,12 +2409,24 @@ impl TerminalState {
         previous_presentation: EffectivePresentation,
         now: Instant,
     ) -> Option<EffectiveStateChange> {
+        // A partial-lifecycle integration that has only reported an unknown
+        // state (for example the ZCode launcher's initial ping) carries
+        // identity, not state authority: screen detection remains the state
+        // source until the integration reports a concrete state.
+        // Full-lifecycle hooks own the pane regardless of what they report.
         let state = if self.visible_blocker_overrides_hook() {
             AgentState::Blocked
         } else {
             self.hook_authority
                 .as_ref()
-                .filter(|authority| self.hook_authority_is_effective(authority))
+                .filter(|authority| {
+                    self.hook_authority_is_effective(authority)
+                        && (authority.state != AgentState::Unknown
+                            || crate::detect::full_lifecycle_hook_authority(
+                                &authority.source,
+                                &authority.agent_label,
+                            ))
+                })
                 .map(|authority| authority.state)
                 .unwrap_or(self.fallback_state)
         };
@@ -2658,6 +2670,35 @@ mod tests {
         assert_eq!(terminal.detected_agent, Some(Agent::Pi));
         assert_eq!(terminal.effective_agent_label(), Some("custom-agent"));
         assert_eq!(terminal.effective_known_agent(), None);
+        assert_eq!(terminal.state, AgentState::Working);
+    }
+
+    #[test]
+    fn partial_hook_unknown_state_does_not_shadow_screen_detection() {
+        let mut terminal = test_terminal();
+        terminal.set_detected_state(Some(Agent::Zcode), AgentState::Working);
+        terminal.set_hook_authority(
+            "herdr-zcode".into(),
+            "zcode".into(),
+            AgentState::Unknown,
+            None,
+            Some(1),
+        );
+
+        assert_eq!(terminal.effective_agent_label(), Some("zcode"));
+        assert_eq!(terminal.state, AgentState::Working);
+
+        // Screen detection keeps deciding until a concrete state arrives.
+        terminal.set_detected_state(Some(Agent::Zcode), AgentState::Idle);
+        assert_eq!(terminal.state, AgentState::Idle);
+
+        terminal.set_hook_authority(
+            "herdr-zcode".into(),
+            "zcode".into(),
+            AgentState::Working,
+            None,
+            Some(2),
+        );
         assert_eq!(terminal.state, AgentState::Working);
     }
 
